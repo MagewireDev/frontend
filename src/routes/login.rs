@@ -1,9 +1,9 @@
-use crate::components::Login;
+use crate::components::Logincard;
 use dioxus::prelude::*;
 
 #[component]
 pub fn Loginroute() -> Element {
     rsx! {
-        Login {}
+        Logincard {}
     }
 }
