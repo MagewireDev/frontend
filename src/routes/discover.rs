@@ -4,8 +4,9 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn Discoverroute() -> Element {
+    let liker_id = 42;
     rsx! {
         Menu {  }
-        Profilecard {  }
+        Profilecard {liker_id}
     }
 }
