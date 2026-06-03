@@ -19,6 +19,7 @@ pub struct LoginRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateProfileRequest {
+    pub profile_id: i32,
     pub display_name: String,
     pub bio: String,
     pub zodiac: String,

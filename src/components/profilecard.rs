@@ -9,6 +9,7 @@ use crate::components::tabs::*;
 use dioxus::prelude::*;
 use dioxus_router::navigator;
 
+// Discovery
 async fn discover(liker_id: i32) -> Result<DiscoveryResponse, reqwest::Error> {
     let profile = reqwest::Client::new()
         .get(format!("http://localhost:8000/discoveries/{liker_id}"))
@@ -162,14 +163,18 @@ fn Profiletabs(display_name: String, bio: String, zodiac: String) -> Element {
         }
     }
 }
+
+// Profile updating
 async fn update_profile(
+    profile_id: i32,
     display_name: String,
     bio: String,
     zodiac: String,
 ) -> Result<(), reqwest::Error> {
     reqwest::Client::new()
-        .put("http://localhost:8000/profiles")
+        .put(format!("http://localhost:8000/profiles/{profile_id}"))
         .json(&UpdateProfileRequest {
+            profile_id,
             display_name,
             bio,
             zodiac,
@@ -180,7 +185,7 @@ async fn update_profile(
     Ok(())
 }
 #[component]
-pub fn Profilecardform() -> Element {
+pub fn Profilecardform(profile_id: i32) -> Element {
     rsx! {
         Card { style: "width: 100%; max-width: 24rem;",
             CardHeader {
@@ -189,7 +194,7 @@ pub fn Profilecardform() -> Element {
             CardContent {
                 div { style: "display: flex; flex-direction: column; gap: 1.5rem;",
                      div { style: "display: grid; gap: 0.5rem;",
-                        Profiletabsform { }
+                        Profiletabsform { profile_id }
                     }
                 }
             }
@@ -198,14 +203,13 @@ pub fn Profilecardform() -> Element {
 }
 
 #[component]
-fn Profiletabsform() -> Element {
+fn Profiletabsform(profile_id: i32) -> Element {
     let mut bio = use_signal(String::new);
     let mut display_name = use_signal(String::new);
     let mut zodiac = use_signal(String::new);
     let mut success = use_signal(|| None::<String>);
     let mut error = use_signal(|| None::<String>);
     let mut loading = use_signal(|| false);
-    let nav = navigator();
 
     rsx! {
         form {
@@ -218,7 +222,7 @@ fn Profiletabsform() -> Element {
                 success.set(None);
                 error.set(None);
 
-                let result = update_profile(display_name(), bio(), zodiac()).await;
+                let result = update_profile(profile_id, display_name(), bio(), zodiac()).await;
 
                 loading.set(false);
 
@@ -291,6 +295,8 @@ fn Profiletabsform() -> Element {
         }
     }
 }
+
+// Matches
 #[component]
 pub fn Matchcard() -> Element {
     rsx! {
