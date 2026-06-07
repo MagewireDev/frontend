@@ -1,5 +1,8 @@
+use crate::api::models::CouplesRequest;
+use crate::api::models::DiscoveryRequest;
 use crate::api::models::DiscoveryResponse;
 use crate::api::models::LikeRequest;
+use crate::api::models::MatchResponse;
 use crate::api::models::UpdateProfileRequest;
 use crate::components::button::{Button, ButtonVariant};
 use crate::components::card::*;
@@ -7,12 +10,12 @@ use crate::components::input::Input;
 use crate::components::label::Label;
 use crate::components::tabs::*;
 use dioxus::prelude::*;
-use dioxus_router::navigator;
 
 // Discovery
 async fn discover() -> Result<DiscoveryResponse, reqwest::Error> {
     let profile = reqwest::Client::new()
-        .get(format!("http://localhost:8000/discoveries"))
+        .post(format!("http://localhost:8000/discoveries"))
+        .json(&DiscoveryRequest { profile_id: 1 })
         .send()
         .await?
         .error_for_status()?
@@ -22,7 +25,7 @@ async fn discover() -> Result<DiscoveryResponse, reqwest::Error> {
     Ok(profile)
 }
 
-async fn like(liker_id: i32, liked_id: i32, status: bool) -> Result<(), reqwest::Error> {
+async fn like(liker_id: i32, liked_id: i32, status: i32) -> Result<(), reqwest::Error> {
     reqwest::Client::new()
         .post("http://localhost:8000/likes")
         .json(&LikeRequest {
@@ -52,7 +55,7 @@ pub fn Profilecard(liker_id: i32) -> Element {
     });
     let like_current = move |_| async move {
         if let Some(p) = profile() {
-            match like(liker_id, p.discovery_id, true).await {
+            match like(liker_id, p.profile_id, 1).await {
                 Ok(_) => match discover().await {
                     Ok(next_profile) => profile.set(Some(next_profile)),
                     Err(err) => error.set(Some(format!("Discovery failed: {err}"))),
@@ -63,7 +66,7 @@ pub fn Profilecard(liker_id: i32) -> Element {
     };
     let skip_current = move |_| async move {
         if let Some(p) = profile() {
-            match like(liker_id, p.discovery_id, false).await {
+            match like(liker_id, p.profile_id, 0).await {
                 Ok(_) => match discover().await {
                     Ok(next_profile) => profile.set(Some(next_profile)),
                     Err(err) => error.set(Some(format!("Discovery failed: {err}"))),
@@ -163,7 +166,6 @@ fn Profiletabs(display_name: String, bio: String, zodiac: String) -> Element {
         }
     }
 }
-
 // Profile updating
 async fn update_profile(
     profile_id: i32,
@@ -172,7 +174,7 @@ async fn update_profile(
     zodiac: String,
 ) -> Result<(), reqwest::Error> {
     reqwest::Client::new()
-        .put(format!("http://localhost:8000/profiles/{profile_id}"))
+        .put("http://localhost:8000/profiles")
         .json(&UpdateProfileRequest {
             profile_id,
             display_name,
@@ -182,8 +184,10 @@ async fn update_profile(
         .send()
         .await?
         .error_for_status()?;
+
     Ok(())
 }
+
 #[component]
 pub fn Profilecardform(profile_id: i32) -> Element {
     rsx! {
@@ -193,7 +197,7 @@ pub fn Profilecardform(profile_id: i32) -> Element {
             }
             CardContent {
                 div { style: "display: flex; flex-direction: column; gap: 1.5rem;",
-                     div { style: "display: grid; gap: 0.5rem;",
+                    div { style: "display: grid; gap: 0.5rem;",
                         Profiletabsform { profile_id }
                     }
                 }
@@ -207,6 +211,7 @@ fn Profiletabsform(profile_id: i32) -> Element {
     let mut bio = use_signal(String::new);
     let mut display_name = use_signal(String::new);
     let mut zodiac = use_signal(String::new);
+
     let mut success = use_signal(|| None::<String>);
     let mut error = use_signal(|| None::<String>);
     let mut loading = use_signal(|| false);
@@ -222,16 +227,21 @@ fn Profiletabsform(profile_id: i32) -> Element {
                 success.set(None);
                 error.set(None);
 
-                let result = update_profile(profile_id, display_name(), bio(), zodiac()).await;
+                let result = update_profile(
+                    profile_id,
+                    display_name(),
+                    bio(),
+                    zodiac(),
+                ).await;
 
                 loading.set(false);
 
                 match result {
                     Ok(_) => {
-                        success.set(Some(format!("Profile updated")));
+                        success.set(Some("Profile updated".to_string()));
                     }
                     Err(err) => {
-                        error.set(Some(format!("Login failed: {err}")));
+                        error.set(Some(format!("Profile update failed: {err}")));
                     }
                 }
             },
@@ -240,56 +250,117 @@ fn Profiletabsform(profile_id: i32) -> Element {
                 default_value: "tab1".to_string(),
                 horizontal: true,
                 max_width: "16rem",
+
                 TabList {
-                    TabTrigger { value: "tab1".to_string(), index: 0usize, "Name" }
-                    TabTrigger { value: "tab2".to_string(), index: 1usize, "Zodiac" }
-                    TabTrigger { value: "tab3".to_string(), index: 2usize, "Bio" }
+                    TabTrigger {
+                        value: "tab1".to_string(),
+                        index: 0usize,
+                        "Name"
+                    }
+                    TabTrigger {
+                        value: "tab2".to_string(),
+                        index: 1usize,
+                        "Zodiac"
+                    }
+                    TabTrigger {
+                        value: "tab3".to_string(),
+                        index: 2usize,
+                        "Bio"
+                    }
                 }
-                TabContent { index: 0usize, value: "tab1".to_string(),
+
+                TabContent {
+                    index: 0usize,
+                    value: "tab1".to_string(),
+
                     div { style: "display: grid; gap: 0.5rem;",
-                        Label { html_for: "new_name", "New name:" }
+                        Label {
+                            html_for: "display_name",
+                            "New name:"
+                        }
+
                         Input {
                             id: "display_name",
                             name: "display_name",
-                            r#type: "display_name",
-                            placeholder: "Niels",
-                            value: "{display_name}",
+                            r#type: "text",
+                            placeholder: "Write your name",
+                            value: display_name(),
                             oninput: move |event: Event<FormData>| {
                                 display_name.set(event.value());
                             }
                         }
-                        Button {
-                            variant: ButtonVariant::Primary,
-                            r#type: "submit",
-                            form: "update-form",
-                            style: "width: 100%;",
-                            "Update"
-                        }
-                        if let Some(message) = error() {
-                            p {style: "color: red; font-size: o.875rem;", "{message}" }
-                        }
                     }
                 }
+
                 TabContent {
                     index: 1usize,
                     value: "tab2".to_string(),
-                    div {
-                        width: "100%",
-                        height: "5rem",
-                        display: "flex",
-                        align_items: "center",
-                        justify_content: "center",
-                        "Virgo"
-                    }
-                }
-                TabContent { index: 2usize, value: "tab3".to_string(),
-                     div { style: "display: grid; gap: 0.5rem;",
-                        Label { html_for: "new_bio", "New bio:" }
+
+                    div { style: "display: grid; gap: 0.5rem;",
+                        Label {
+                            html_for: "zodiac",
+                            "New zodiac:"
+                        }
+
                         Input {
-                           id: "bio",
-                           r#type: "bio",
+                            id: "zodiac",
+                            name: "zodiac",
+                            r#type: "text",
+                            placeholder: "Write your zodiac sign",
+                            value: zodiac(),
+                            oninput: move |event: Event<FormData>| {
+                                zodiac.set(event.value());
+                            }
                         }
                     }
+                }
+
+                TabContent {
+                    index: 2usize,
+                    value: "tab3".to_string(),
+
+                    div { style: "display: grid; gap: 0.5rem;",
+                        Label {
+                            html_for: "bio",
+                            "New bio:"
+                        }
+
+                        Input {
+                            id: "bio",
+                            name: "bio",
+                            r#type: "text",
+                            placeholder: "Write something about yourself",
+                            value: bio(),
+                            oninput: move |event: Event<FormData>| {
+                                bio.set(event.value());
+                            }
+                        }
+                    }
+                }
+            }
+
+            Button {
+                variant: ButtonVariant::Primary,
+                r#type: "submit",
+                style: "width: 100%; margin-top: 1rem;",
+                if loading() {
+                    "Updating..."
+                } else {
+                    "Update"
+                }
+            }
+
+            if let Some(message) = success() {
+                p {
+                    style: "color: green; font-size: 0.875rem;",
+                    "{message}"
+                }
+            }
+
+            if let Some(message) = error() {
+                p {
+                    style: "color: red; font-size: 0.875rem;",
+                    "{message}"
                 }
             }
         }
@@ -297,8 +368,21 @@ fn Profiletabsform(profile_id: i32) -> Element {
 }
 
 // Matches
+async fn get_matches(profile_id: i32, index: i32) -> Result<MatchResponse, reqwest::Error> {
+    let matched_profile = reqwest::Client::new()
+        .post("http://localhost:8000/couples")
+        .json(&CouplesRequest { profile_id, index })
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<MatchResponse>()
+        .await?;
+
+    Ok(matched_profile)
+}
+
 #[component]
-pub fn Matchcard() -> Element {
+pub fn Matchcard(profile_id: i32) -> Element {
     rsx! {
         Card { style: "width: 100%; max-width: 24rem;",
             CardHeader {
@@ -307,56 +391,174 @@ pub fn Matchcard() -> Element {
             CardContent {
                 div { style: "display: flex; flex-direction: column; gap: 1.5rem;",
                     div { style: "display: grid; gap: 0.5rem;",
-                        Matchtabs { }
+                        Matchtabs { profile_id }
                     }
                 }
             }
         }
     }
 }
-
 #[component]
-fn Matchtabs() -> Element {
+fn Matchtabs(profile_id: i32) -> Element {
+    let mut index = use_signal(|| 0);
+    let mut current_match = use_signal(|| None::<MatchResponse>);
+    let mut error = use_signal(|| None::<String>);
+    let mut loading = use_signal(|| false);
+
+    use_effect(move || {
+        spawn(async move {
+            loading.set(true);
+            error.set(None);
+
+            let result = get_matches(profile_id, index()).await;
+
+            loading.set(false);
+
+            match result {
+                Ok(profile) => {
+                    current_match.set(Some(profile));
+                }
+                Err(err) => {
+                    error.set(Some(format!("Could not load match: {err}")));
+                }
+            }
+        });
+    });
     rsx! {
-        Tabs {
-            default_value: "tab1".to_string(),
-            horizontal: true,
-            max_width: "16rem",
-            TabList {
-                TabTrigger { value: "tab1".to_string(), index: 0usize, "Name" }
-                TabTrigger { value: "tab2".to_string(), index: 1usize, "Zodiac" }
-                TabTrigger { value: "tab3".to_string(), index: 2usize, "Bio" }
-            }
-            TabContent { index: 0usize, value: "tab1".to_string(),
-                div {
-                    width: "100%",
-                    height: "5rem",
-                    display: "flex",
-                    align_items: "center",
-                    justify_content: "center",
-                    "Amanda Mortensen"
+        div {
+            Tabs {
+                default_value: "tab1".to_string(),
+                horizontal: true,
+                max_width: "16rem",
+
+                TabList {
+                    TabTrigger { value: "tab1".to_string(), index: 0usize, "Name" }
+                    TabTrigger { value: "tab2".to_string(), index: 1usize, "Zodiac" }
+                    TabTrigger { value: "tab3".to_string(), index: 2usize, "Bio" }
+                }
+
+                TabContent { index: 0usize, value: "tab1".to_string(),
+                    div {
+                        width: "100%",
+                        height: "5rem",
+                        display: "flex",
+                        align_items: "center",
+                        justify_content: "center",
+
+                        if let Some(profile) = current_match() {
+                            "{profile.display_name}"
+                        } else {
+                            "No match loaded"
+                        }
+                    }
+                }
+
+                TabContent { index: 1usize, value: "tab2".to_string(),
+                    div {
+                        width: "100%",
+                        height: "5rem",
+                        display: "flex",
+                        align_items: "center",
+                        justify_content: "center",
+
+                        if let Some(profile) = current_match() {
+                            "{profile.zodiac}"
+                        } else {
+                            "No match loaded"
+                        }
+                    }
+                }
+
+                TabContent { index: 2usize, value: "tab3".to_string(),
+                    div {
+                        width: "100%",
+                        height: "5rem",
+                        display: "flex",
+                        align_items: "center",
+                        justify_content: "center",
+
+                        if let Some(profile) = current_match() {
+                            "{profile.bio}"
+                        } else {
+                            "No match loaded"
+                        }
+                    }
                 }
             }
-            TabContent {
-                index: 1usize,
-                value: "tab2".to_string(),
-                div {
-                    width: "100%",
-                    height: "5rem",
-                    display: "flex",
-                    align_items: "center",
-                    justify_content: "center",
-                    "Virgo"
+
+            div {
+                style: "display: flex; gap: 0.5rem; margin-top: 1rem;",
+
+                Button {
+                    variant: ButtonVariant::Primary,
+                    r#type: "button",
+                    disabled: index() <= 0 || loading(),
+
+                    onclick: move |_| async move {
+                        let new_index = index() - 1;
+
+                        loading.set(true);
+                        error.set(None);
+
+                        let result = get_matches(profile_id, new_index).await;
+
+                        loading.set(false);
+
+                        match result {
+                            Ok(profile) => {
+                                index.set(new_index);
+                                current_match.set(Some(profile));
+                            }
+                            Err(err) => {
+                                error.set(Some(format!("Could not load previous match: {err}")));
+                            }
+                        }
+                    },
+
+                    "Previous"
+                }
+
+                Button {
+                    variant: ButtonVariant::Primary,
+                    r#type: "button",
+                    disabled: loading(),
+
+                    onclick: move |_| async move {
+                        let new_index = index() + 1;
+
+                        loading.set(true);
+                        error.set(None);
+
+                        let result = get_matches(profile_id, new_index).await;
+
+                        loading.set(false);
+
+                        match result {
+                            Ok(profile) => {
+                                index.set(new_index);
+                                current_match.set(Some(profile));
+                            }
+                            Err(err) => {
+                                error.set(Some(format!("Could not load next match: {err}")));
+                            }
+                        }
+                    },
+
+                    "Next"
                 }
             }
-            TabContent { index: 2usize, value: "tab3".to_string(),
-                div {
-                    width: "100%",
-                    height: "5rem",
-                    display: "flex",
-                    align_items: "center",
-                    justify_content: "center",
-                    "Sød og glad"
+
+            if loading() {
+                p {
+                    style: "font-size: 0.875rem;",
+                    "Loading..."
+                }
+            }
+
+            if let Some(message) = error() {
+                p {
+                    style: "color: red; font-size: 0.875rem;",
+                    "{message}"
                 }
             }
         }

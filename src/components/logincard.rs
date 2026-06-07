@@ -9,6 +9,7 @@ use dioxus_router::navigator;
 async fn login(email: String, password: String) -> Result<(), reqwest::Error> {
     reqwest::Client::new()
         .post("http://localhost:8000/sessions")
+        .fetch_credentials_include()
         .json(&LoginRequest { email, password })
         .send()
         .await?
@@ -41,12 +42,51 @@ pub fn Logincard() -> Element {
                 CardTitle { "Login to your account" }
             }
             CardContent {
-                form {
-                    id: "login-form",
+                div { style: "display: flex; flex-direction: column; gap: 1.5rem;",
+                    div { style: "display: grid; gap: 0.5rem;",
+                        Label { html_for: "email", "Email" }
+                        Input {
+                            id: "email",
+                            name: "email",
+                            r#type: "email",
+                            placeholder: "m@example.com",
+                            value: "{email}",
+                            oninput: move |event: Event<FormData>| {
+                                email.set(event.value());
+                            }
+                        }
+                    }
+                    div { style: "display: grid; gap: 0.5rem;",
+                        div { style: "display: flex; align-items: center;",
+                            Label { html_for: "password", "Password" }
+                            a {
+                                href: "#",
+                                style: "margin-left: auto; font-size: 0.875rem; color: var(--secondary-color-5); text-decoration: underline; text-underline-offset: 4px;",
+                                "Forgot your password?"
+                            }
+                        }
+                        Input {
+                            id: "password",
+                            name: "password",
+                            r#type: "password",
+                            value: "{password}",
+                            oninput: move |event: Event<FormData>| {
+                                password.set(event.value());
+                            }
+                        }
+                    }
+                    if let Some(message) = error() {
+                        p { style: "color: red; font-size: 0.875rem;", "{message}" }
+                    }
+                }
+            }
+            CardFooter { style: "flex-direction: column; gap: 0.5rem;",
+                Button {
+                    variant: ButtonVariant::Outline,
+                    r#type: "button",
+                    style: "width: 100%;",
 
-                    onsubmit: move |event| async move {
-                        event.prevent_default();
-
+                    onclick: move |_| async move {
                         loading.set(true);
                         error.set(None);
 
@@ -59,57 +99,10 @@ pub fn Logincard() -> Element {
                                 nav.push("/discover");
                             }
                             Err(err) => {
-                                error.set(Some(format!("Login failed: {err}")));
+                                error.set(Some(format!("Signup failed: {err}")));
                             }
                         }
-                    },
-
-                    div { style: "display: flex; flex-direction: column; gap: 1.5rem;",
-                        div { style: "display: grid; gap: 0.5rem;",
-                            Label { html_for: "email", "Email" }
-                            Input {
-                                id: "email",
-                                name: "email",
-                                r#type: "email",
-                                placeholder: "m@example.com",
-                                value: "{email}",
-                                oninput: move |event: Event<FormData>| {
-                                    email.set(event.value());
-                                }
-                            }
-                        }
-                        div { style: "display: grid; gap: 0.5rem;",
-                            div { style: "display: flex; align-items: center;",
-                                Label { html_for: "password", "Password" }
-                                a {
-                                    href: "#",
-                                    style: "margin-left: auto; font-size: 0.875rem; color: var(--secondary-color-5); text-decoration: underline; text-underline-offset: 4px;",
-                                    "Forgot your password?"
-                                }
-                            }
-                            Input {
-                                id: "password",
-                                name: "password",
-                                r#type: "password",
-                                value: "{password}",
-                                oninput: move |event: Event<FormData>| {
-                                    password.set(event.value());
-                                }
-                            }
-                        }
-                        if let Some(message) = error() {
-                            p { style: "color: red; font-size: 0.875rem;", "{message}" }
-                        }
-                    }
-                }
-            }
-            CardFooter { style: "flex-direction: column; gap: 0.5rem;",
-                Button {
-                    variant: ButtonVariant::Primary,
-                    r#type: "submit",
-                    form: "login-form",
-                    style: "width: 100%;",
-                    "Login"
+                    }, "Login"
                 }
                 Button {
                     variant: ButtonVariant::Outline,
