@@ -10,9 +10,9 @@ use dioxus::prelude::*;
 use dioxus_router::navigator;
 
 // Discovery
-async fn discover(liker_id: i32) -> Result<DiscoveryResponse, reqwest::Error> {
+async fn discover() -> Result<DiscoveryResponse, reqwest::Error> {
     let profile = reqwest::Client::new()
-        .get(format!("http://localhost:8000/discoveries/{liker_id}"))
+        .get(format!("http://localhost:8000/discoveries"))
         .send()
         .await?
         .error_for_status()?
@@ -44,7 +44,7 @@ pub fn Profilecard(liker_id: i32) -> Element {
 
     use_effect(move || {
         spawn(async move {
-            match discover(liker_id).await {
+            match discover().await {
                 Ok(next_profile) => profile.set(Some(next_profile)),
                 Err(err) => error.set(Some(format!("Initial Discovery failed: {err}"))),
             }
@@ -53,7 +53,7 @@ pub fn Profilecard(liker_id: i32) -> Element {
     let like_current = move |_| async move {
         if let Some(p) = profile() {
             match like(liker_id, p.discovery_id, true).await {
-                Ok(_) => match discover(liker_id).await {
+                Ok(_) => match discover().await {
                     Ok(next_profile) => profile.set(Some(next_profile)),
                     Err(err) => error.set(Some(format!("Discovery failed: {err}"))),
                 },
@@ -64,7 +64,7 @@ pub fn Profilecard(liker_id: i32) -> Element {
     let skip_current = move |_| async move {
         if let Some(p) = profile() {
             match like(liker_id, p.discovery_id, false).await {
-                Ok(_) => match discover(liker_id).await {
+                Ok(_) => match discover().await {
                     Ok(next_profile) => profile.set(Some(next_profile)),
                     Err(err) => error.set(Some(format!("Discovery failed: {err}"))),
                 },

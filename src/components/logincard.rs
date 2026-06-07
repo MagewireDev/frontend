@@ -8,7 +8,7 @@ use dioxus_router::navigator;
 
 async fn login(email: String, password: String) -> Result<(), reqwest::Error> {
     reqwest::Client::new()
-        .post("http://localhost:8000/users/login")
+        .post("http://localhost:8000/sessions")
         .json(&LoginRequest { email, password })
         .send()
         .await?
